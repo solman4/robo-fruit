@@ -8,6 +8,7 @@ export const SKINS = [
   { id: 'original', label: 'Bản gốc', finish: 'Nhôm satin · Mắt xanh', swatches: ['#c4cbd0','#15191e','#23d941'], palette: {} },
   { id: 'mecha', label: 'Mecha', finish: 'Giáp cơ khí · Triển khai từng lớp', swatches: ['#e2e7e8','#263444','#e49343'], palette: {}, design: true },
   { id: 'assistant', label: 'Trợ lý', finish: 'Vỏ bo tròn · Khuôn mặt biểu cảm', swatches: ['#eeeee5','#458a90','#80e9e3'], palette: {}, design: true },
+  { id: 'bdu', label: 'Áo BDU', finish: 'Polo đỏ · Logo BDU thêu', swatches: ['#b0062e','#fbf6f0','#c4cbd0'], palette: {} },
   { id: 'ceramic', label: 'Trắng sứ', finish: 'Vỏ sứ bóng · Đèn xanh băng', swatches: ['#eeeee6','#617583','#26d9f0'], palette: {
     shell: { color: 0xeeeee6, metalness: .08, roughness: .19, envMapIntensity: 1.1 },
     frame: { color: 0x7c8c98, metalness: .68, roughness: .35 },
@@ -75,7 +76,11 @@ export function createSkinController(rig) {
     activeDesign=designs[id];
     for(const {node,visible} of baseMeshes)node.visible=activeDesign?false:visible;
     for(const [key,design] of Object.entries(designs))for(const root of design.roots)root.visible=key===id;
-    if(!activeDesign)rig.costume.forEach(m=>m.visible=skin.id==='sporty');
+    // Costumes are always reset, otherwise a worn set would leak through when switching to a design skin.
+    for(const [wornId,nodes] of [['sporty',rig.costume],['bdu',rig.bduCostume]])nodes.forEach(m=>m.visible=skin.id===wornId);
+    // Hardware under the polo is hidden by it, and by the design skins that replace the whole exterior.
+    rig.shirtCovered.forEach(n=>n.visible=skin.id!=='bdu'&&!activeDesign);
+    rig.shoulderFit.forEach(f=>f.node.position.x=skin.id==='bdu'?f.fitted:f.original);
     rig.face=activeDesign?.face??baseFace;rig.animationNodes=activeDesign?.animatedNodes??[];
     current=skin;rig.root.userData.skin={id:skin.id,label:skin.label};return skin;
   }
