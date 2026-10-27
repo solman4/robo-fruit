@@ -12,6 +12,7 @@ Mô phỏng robot 3D tương tác theo tỷ lệ tham chiếu Tonybot (sử dụ
   - Xoay 360°, phóng to/thu nhỏ (OrbitControls).
   - Điều chỉnh từng góc khớp servo (LX-824HV).
   - Đổi màu sắc / ngoại hình (Skin), mở/đóng giáp mecha, thay đổi biểu cảm.
+  - **Áo BDU**: áo polo đỏ bằng vải piqué mềm (cổ áo, nẹp cúc, tay áo ngắn, logo BDU thêu ở ngực trái), mặc thẳng lên robot và đi theo mọi chuyển động. Logo hiện vẽ bằng canvas trong `model.mjs` (`bduLogoTexture`), có thể thay bằng ảnh logo chính thức.
 - **Xuất file**: Hỗ trợ xuất và tải trực tiếp mô hình `.glb`.
 
 ## Cài đặt & Khởi chạy
