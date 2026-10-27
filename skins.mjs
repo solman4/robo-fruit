@@ -80,6 +80,7 @@ export function createSkinController(rig) {
     for(const [wornId,nodes] of [['sporty',rig.costume],['bdu',rig.bduCostume]])nodes.forEach(m=>m.visible=skin.id===wornId);
     // Hardware under the polo is hidden by it, and by the design skins that replace the whole exterior.
     rig.shirtCovered.forEach(n=>n.visible=skin.id!=='bdu'&&!activeDesign);
+    rig.shoulderFit.forEach(f=>f.node.position.x=skin.id==='bdu'?f.fitted:f.original);
     rig.face=activeDesign?.face??baseFace;rig.animationNodes=activeDesign?.animatedNodes??[];
     current=skin;rig.root.userData.skin={id:skin.id,label:skin.label};return skin;
   }

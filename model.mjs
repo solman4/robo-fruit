@@ -301,18 +301,23 @@ export function createRobot() {
   // Sized from a real men's size-M polo, not by eye. Pattern measurements (cm, garment laid flat): Ricoma men's polo
   // chart (length 73, half chest 54, shoulder 46, sleeve 22, half cuff 18), Morris Stockholm piqué (half hem 50),
   // T-shirt tech pack (neck width 18, front neck drop 9) and a 4 cm shoulder drop. They are scaled onto the robot by
-  // shoulder width: 46 cm -> the 168 mm between its shoulder axes. Two values cannot follow that scale because the robot
+  // shoulder width: 46 cm -> the 152 mm between its shoulder axes. Two values cannot follow that scale because the robot
   // is not built like a person: its torso is short and its upper arm is short, so the hem sits where a polo ends on a
   // person (crotch level = hip pitch axis) and the sleeve covers the same share of the upper arm (22/33 cm).
   // The cloth is one signed-distance shape (body + sleeves, smooth-unioned, under a sloping shoulder line), meshed with
   // surface nets, opened at hem, neck and cuffs, and skinned to pelvis, waist and both upper arms.
+  // A person's shoulder joint sits at the edge of the torso; the robot's sits 20 mm outside it, which made the sleeves
+  // read as separate blocks. While the shirt is worn the shoulders are brought in to 76 mm (skins.mjs applies
+  // shoulderFit), and the shirt is built and bound in that pose.
+  const shoulderFit=bduArms.map(({sign,shoulder})=>{const node=shoulder.parent;return {node,original:node.position.x,fitted:sign*.076};});
+  for(const f of shoulderFit)f.node.position.x=f.fitted;
   root.updateMatrixWorld(true);
   const V3=THREE.Vector3,TAU=Math.PI*2,waistInv=new THREE.Matrix4().copy(waist.matrixWorld).invert();
   const sat=n=>Math.min(1,Math.max(0,n)),smoothstep=(a,b,x)=>{const t=sat((x-a)/(b-a));return t*t*(3-2*t);};
   const smin=(a,b,k)=>{const h=sat(.5+.5*(b-a)/k);return b+(a-b)*h-k*h*(1-h);},smax=(a,b,k)=>-smin(-a,-b,k);
   const sdTube=(x,y,z,a,b,ra,rb)=>{const bx=b[0]-a[0],by=b[1]-a[1],bz=b[2]-a[2],px=x-a[0],py=y-a[1],pz=z-a[2],h=sat((px*bx+py*by+pz*bz)/(bx*bx+by*by+bz*bz));return Math.hypot(px-bx*h,py-by*h,pz-bz*h)-(ra+(rb-ra)*h);};
   const POLO_M={length:73,halfChest:54,halfHem:50,shoulder:46,sleeve:22,halfCuff:18,neckWidth:18,neckDrop:9,shoulderDrop:4,upperArm:33};
-  const CM=.168/POLO_M.shoulder;                                   // metres on the robot per pattern centimetre
+  const CM=2*Math.abs(shoulderFit[0].fitted)/POLO_M.shoulder;                                   // metres on the robot per pattern centimetre
   const NECK_Y=.092,NECK_HALF=POLO_M.neckWidth/2*CM,SHOULDER_X=POLO_M.shoulder/2*CM;
   const SLOPE=POLO_M.shoulderDrop*CM/(SHOULDER_X-NECK_HALF);        // ~16 degrees
   const HEM=-.045;                                                  // hip pitch axis: where a polo ends on a person
@@ -326,14 +331,15 @@ export function createRobot() {
   });
   // Body girth follows the chart (chest 108 cm, hem 100 cm, x CM); the section is a soft superellipse kept clear of the
   // arms, so the extra girth goes into depth like a shirt hanging from the shoulders.
-  const BODY=[[HEM,.063,.048],[.010,.061,.047],[.050,.064,.050],[.070,.064,.048],[NECK_Y,.056,.042]],BN=2.6,BCZ=-.001;
+  const BODY=[[HEM,.064,.047],[-.010,.063,.046],[.020,.059,.045],[.050,.060,.046],[.070,.060,.045],[NECK_Y,.052,.040]],BN=2.6,BCZ=-.001;
   const bodyAt=y=>{if(y<=BODY[0][0])return BODY[0];for(let i=0;i<BODY.length-1;i++){const [y0,a0,b0]=BODY[i],[y1,a1,b1]=BODY[i+1];if(y<=y1){const u=smoothstep(0,1,(y-y0)/(y1-y0));return [y,a0+(a1-a0)*u,b0+(b1-b0)*u];}}return BODY[BODY.length-1];};
   const roof=(x,y)=>y-(NECK_Y-Math.max(0,Math.abs(x)-NECK_HALF)*SLOPE);
   const bodySD=(x,y,z)=>{const [,a,b]=bodyAt(y),k=(Math.abs(x/a)**BN+Math.abs((z-BCZ)/b)**BN)**(1/BN);return (k-1)*Math.min(a,b);};
-  const armSD=(a,x,y,z)=>sdTube(x,y,z,a.top,a.hem,.024,CUFF_R);
+  const armSD=(a,x,y,z)=>sdTube(x,y,z,a.top,a.hem,.025,CUFF_R);
   const creases=(x,y,z)=>(.0005*Math.sin(170*x+60*y+1.3)+.0004*Math.sin(-90*x+150*y+.7)+.0003*Math.sin(210*z+110*y))*(1+1.4*sat((.0-y)/.04))*(1-sat((y-.078)/.012));
-  const torsoSD=(x,y,z)=>smax(bodySD(x,y,z),roof(x,y),.009);
-  const shapeSD=(x,y,z)=>{let d=bodySD(x,y,z);for(const a of arms)d=smin(d,armSD(a,x,y,z),.004);return smax(d,roof(x,y),.009)-creases(x,y,z);};
+  const torsoSD=(x,y,z)=>smax(bodySD(x,y,z),roof(x,y),.012);
+  const blendK=y=>.004+.016*smoothstep(.040,.078,y);
+  const shapeSD=(x,y,z)=>{let d=bodySD(x,y,z);const k=blendK(y);for(const a of arms)d=smin(d,armSD(a,x,y,z),k);return smax(d,roof(x,y),.012)-creases(x,y,z);};
   // Openings (positive = cut away): wavy hem, neck (lower at the front for the placket), and each cuff.
   const hemY=(x,z)=>HEM+.0015*Math.sin(160*x+1.1)*Math.cos(90*z);
   const NECK_RZ=.028,neckLine=z=>.087-.010*sat((z+.002)/NECK_RZ);
@@ -419,6 +425,7 @@ export function createRobot() {
   const shirt=new THREE.SkinnedMesh(shirtGeometry(),bduRed);shirt.name=`BDU polo shirt_${serial++}`;
   shirt.castShadow=shirt.receiveShadow=true;shirt.frustumCulled=false;shirt.visible=false;waist.add(shirt);bduCostume.push(shirt);
   root.updateMatrixWorld(true);shirt.bind(new THREE.Skeleton([waistBone,...armBones,pelvisBone]));
+  for(const f of shoulderFit)f.node.position.x=f.original;
 
   // Front details sit on the cloth: frontZ finds the surface by marching in from the front.
   const frontZ=(x,y)=>{let lo=-.02,hi=.08;if(shapeSD(x,y,lo)>0)return lo;for(let n=0;n<24;n++){const m=(lo+hi)/2;if(shapeSD(x,y,m)<0)lo=m;else hi=m;}return lo;};
@@ -509,5 +516,5 @@ export function createRobot() {
     cable(pelvis,[[sign*.043,.015,-.017],[sign*.053,-.014,-.032],[sign*.047,-.052,-.030],[sign*.030,-.063,-.020]],.0013,sign>0?red:dark);
   }
   root.updateMatrixWorld(true);
-  return { root, joints, face, costume, bduCostume, shirtCovered, styleMaterials: { shell: paint, frame: silver, trim: edge, fasteners: steel, servo: black, eyes: led, mouth: mouthMat }, dimensions: { height: .383, thigh: .067, shin: .056, ankleHeight: .057, hipHeight: .180, hipRollHeight: .223 }, restPose };
+  return { root, joints, face, costume, bduCostume, shirtCovered, shoulderFit, styleMaterials: { shell: paint, frame: silver, trim: edge, fasteners: steel, servo: black, eyes: led, mouth: mouthMat }, dimensions: { height: .383, thigh: .067, shin: .056, ankleHeight: .057, hipHeight: .180, hipRollHeight: .223 }, restPose };
 }
