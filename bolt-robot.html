@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Phòng học của Robot Bolt: bé trò chuyện, hát và chơi cùng robot 3D của Viện Ngoại ngữ Bolt.">
+  <meta name="theme-color" content="#FFFDF9">
+  <title>Phòng học Robot Bolt</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="./bolt-robot.css">
+  <script type="importmap">{"imports":{"three":"./vendor/three.module.js"}}</script>
+</head>
+<body>
+  <header>
+    <div class="hd">
+      <div class="logo"><a href="/" target="_top" aria-label="Viện Ngoại ngữ Bolt"><img class="logo-img" src="/bolt/logo.jpg" alt="Bolt" width="200" height="58"></a></div>
+      <nav>
+        <span class="nav-a on">Phòng học Robot</span>
+        <button id="robot-sound" class="nav-a nav-sound" type="button" aria-pressed="true"><span class="ico" data-icon="speakerHigh"></span><span class="nav-sound-label">Âm thanh: bật</span></button>
+        <a class="nav-cta" href="/" target="_top">Về trang <span class="brand-bolt">Bolt</span></a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="room">
+    <section class="room-main" aria-label="Phòng học của robot">
+      <div class="exam-visual room-visual">
+        <div id="robot-stage" class="robot-stage"></div>
+        <div id="robot-bubble" class="robot-bubble" role="status" aria-live="polite"><b>Hello!</b><span>Chào bạn, mình là robot Bolt!</span></div>
+        <span class="pill robot-hint" aria-hidden="true">Kéo sang hai bên để xoay phòng học</span>
+      </div>
+      <ul id="robot-actions" class="robot-actions" aria-label="Bé chọn hành động cho robot"></ul>
+    </section>
+
+    <aside class="room-side">
+      <section class="room-card chat-card" aria-labelledby="chat-title">
+        <h2 id="chat-title" class="room-card-title"><span class="ico tone-sky" data-icon="chatCircleDots"></span>Trò chuyện với <span class="brand-bolt">Bolt</span></h2>
+        <ol id="chat-log" class="chat-log" aria-live="polite"></ol>
+        <div id="chat-chips" class="chat-chips" aria-label="Gợi ý"></div>
+        <form id="chat-form" class="chat-form" autocomplete="off">
+          <label class="sr-only" for="chat-input">Tin nhắn cho robot</label>
+          <input id="chat-input" name="message" maxlength="80" placeholder="Gõ tin nhắn cho Bolt…" enterkeyhint="send">
+          <button class="btn btn-red chat-send" type="submit" aria-label="Gửi tin nhắn"><span class="ico" data-icon="paperPlaneTilt"></span></button>
+        </form>
+      </section>
+      <section class="room-card" aria-labelledby="song-title">
+        <h2 id="song-title" class="room-card-title"><span class="ico tone-violet" data-icon="microphoneStage"></span>Hát cùng <span class="brand-bolt">Bolt</span></h2>
+        <div id="song-list" class="song-list"></div>
+      </section>
+      <section class="room-card" aria-labelledby="outfit-title">
+        <h2 id="outfit-title" class="room-card-title"><span class="ico tone-coral" data-icon="tShirt"></span>Trang phục</h2>
+        <div id="robot-outfits" class="robot-outfits"></div>
+      </section>
+    </aside>
+  </main>
+  <script type="module" src="./bolt-robot.mjs"></script>
+</body>
+</html>
