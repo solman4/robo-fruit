@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Xem robot 3D dựng theo ảnh, điều chỉnh từng khớp và thử chuyển động tay, chân, mắt, miệng.">
+  <meta name="theme-color" content="#edf0ef">
+  <title>Robot / 3D</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="./style.css">
+  <script type="importmap">{"imports":{"three":"./vendor/three.module.js"}}</script>
+</head>
+<body>
+  <a class="skip-link" href="#controls">Đến bảng điều khiển</a>
+  <header class="app-header">
+    <div class="identity"><h1>Robot <span>/ 3D</span></h1><p>Dựng theo ảnh · Tỷ lệ tham chiếu Tonybot</p></div>
+    <div class="header-actions">
+      <span id="status" role="status" aria-live="polite">Đang dựng mô hình…</span>
+      <button id="reference" class="quiet-button" type="button">Ảnh tham chiếu</button>
+      <a id="download" class="download" href="./robot-animated.glb" download>Tải GLB</a>
+    </div>
+  </header>
+
+  <main class="workspace">
+    <section class="viewport" aria-label="Không gian xem robot">
+      <div id="stage" aria-label="Mô hình robot 3D tương tác"></div>
+      <div class="viewport-heading"><h2 id="skin-name">Bản gốc</h2><p id="skin-finish">Nhôm satin · Mắt xanh</p></div>
+      <nav id="skin-options" class="skin-options" aria-label="Chọn ngoại hình robot"></nav>
+      <div id="design-tools" class="design-tools" hidden>
+        <button id="armor-toggle" type="button" aria-pressed="false" hidden>Mở giáp</button>
+        <label id="expression-field" class="expression-field" for="expression" hidden><span>Biểu cảm</span><select id="expression"><option value="happy">Vui</option><option value="curious">Tò mò</option><option value="surprised">Ngạc nhiên</option><option value="sleepy">Buồn ngủ</option></select></label>
+      </div>
+      <div class="viewport-footer"><span>Kéo để xoay · Cuộn để zoom</span><button id="reset" class="quiet-button" type="button">Đặt lại</button></div>
+    </section>
+
+    <aside id="controls" class="controls" aria-label="Bảng điều khiển robot" tabindex="-1">
+      <section class="control-section motion-section" aria-labelledby="motion-heading">
+        <div class="section-heading"><h2 id="motion-heading">Chuyển động</h2><button id="play" class="compact-button" type="button" aria-pressed="true">Tạm dừng</button></div>
+        <nav class="motion-options" aria-label="Chọn chuyển động">
+          <button type="button" data-motion="idle" aria-pressed="true">Đứng</button>
+          <button type="button" data-motion="walk" aria-pressed="false">Đi bộ</button>
+          <button type="button" data-motion="run" aria-pressed="false">Chạy</button>
+          <button type="button" data-motion="jump" aria-pressed="false">Nhảy</button>
+          <button type="button" data-motion="wave" aria-pressed="false">Vẫy tay</button>
+          <button type="button" data-motion="dance" aria-pressed="false">Nhún nhảy</button>
+          <button type="button" data-motion="talk" aria-pressed="false">Nói chuyện</button>
+        </nav>
+        <div class="field-heading"><label for="speed">Tốc độ</label><output id="speed-value" for="speed">1×</output></div>
+        <input id="speed" type="range" min="0.25" max="2" step="0.05" value="1" aria-label="Tốc độ chuyển động">
+      </section>
+
+      <section class="control-section" aria-labelledby="pose-heading">
+        <div class="section-heading"><h2 id="pose-heading">Điều chỉnh khớp</h2><button id="pose-reset" class="text-button" type="button">Về chuẩn</button></div>
+        <label class="sr-only" for="joint-select">Chọn khớp</label>
+        <select id="joint-select" aria-label="Chọn khớp"><option value="">Đang tải khớp…</option></select>
+        <div class="field-heading angle-heading"><label for="joint-angle">Góc xoay</label><output id="joint-value" for="joint-angle">0°</output></div>
+        <input id="joint-angle" type="range" min="-90" max="90" step="1" value="0" aria-label="Góc xoay khớp">
+      </section>
+
+      <section class="control-section expression-section" aria-labelledby="face-heading">
+        <h2 id="face-heading">Biểu cảm</h2>
+        <label class="check-row" for="blink"><span>Chớp mắt</span><input id="blink" type="checkbox" checked></label>
+        <label class="check-row" for="mouth"><span id="mouth-label">Miệng LED</span><input id="mouth" type="checkbox"></label>
+      </section>
+
+      <section class="control-section view-section" aria-labelledby="view-heading">
+        <h2 id="view-heading">Góc nhìn</h2>
+        <nav class="view-options" aria-label="Chọn góc nhìn">
+          <button type="button" data-view="front" aria-pressed="true">Chính diện</button>
+          <button type="button" data-view="threequarter" aria-pressed="false">Góc nghiêng</button>
+          <button type="button" data-view="side" aria-pressed="false">Bên hông</button>
+          <button type="button" data-view="back" aria-pressed="false">Phía sau</button>
+        </nav>
+        <label class="check-row" for="autorotate"><span>Tự xoay góc nhìn</span><input id="autorotate" type="checkbox"></label>
+        <label class="check-row" for="wireframe"><span>Xem lưới 3D</span><input id="wireframe" type="checkbox"></label>
+      </section>
+    </aside>
+  </main>
+
+  <dialog id="reference-dialog" aria-labelledby="reference-title">
+    <div class="dialog-heading"><div><h2 id="reference-title">Ảnh tham chiếu</h2><p>Ảnh gốc và bản vẽ tỷ lệ dùng để dựng hình.</p></div><button id="close-reference" type="button">Đóng</button></div>
+    <div class="reference-images">
+      <figure><img src="./reference.png" loading="lazy" alt="Hai robot kim loại với mắt xanh trong ảnh người dùng cung cấp" width="1920" height="2560"><figcaption>Ảnh của bạn</figcaption></figure>
+      <figure><img src="./dimensions.jpg" loading="lazy" alt="Bản vẽ ba hướng Tonybot với các kích thước tham chiếu chính hãng" width="900" height="740"><figcaption>Bản vẽ Tonybot chính hãng</figcaption></figure>
+    </div>
+  </dialog>
+  <script type="module" src="./viewer.mjs"></script>
+</body>
+</html>
