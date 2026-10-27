@@ -160,7 +160,7 @@ export function createRobot() {
     return { colour, normal };
   }
   const weave = piqueWeave();
-  const clothMat = (name, color) => new THREE.MeshPhysicalMaterial({ name, color, map: weave.colour, normalMap: weave.normal, normalScale: new THREE.Vector2(.6, .6), roughness: 1, metalness: 0, sheen: 1, sheenRoughness: .55, sheenColor: new THREE.Color(0xc8324a), specularIntensity: .15, envMapIntensity: .4, side: THREE.DoubleSide });
+  const clothMat = (name, color) => new THREE.MeshPhysicalMaterial({ name, color, map: weave.colour, normalMap: weave.normal, normalScale: new THREE.Vector2(.45, .45), roughness: 1, metalness: 0, sheen: 1, sheenRoughness: .55, sheenColor: new THREE.Color(0xc8324a), specularIntensity: .15, envMapIntensity: .4, side: THREE.DoubleSide });
   const bduRed = clothMat('BDU polo fabric', 0x860820), bduPlacket = clothMat('BDU polo placket', 0x740619);
   const bduButton = new THREE.MeshStandardMaterial({ name: 'BDU polo button', color: 0xf1ece4, roughness: .4, metalness: .05 });
   const bduLogoTexture = canvasTexture((c, w, h) => {
@@ -220,78 +220,7 @@ export function createRobot() {
 
   const collar=ring(waist,'Shirt collar',.017,.0035,0,.086,-.002,shirtFabric,'y');collar.visible=false;costume.push(collar);
 
-  // ---- BDU polo, torso ----
-  // Section table (y, half-width, half-depth): fitted chest, broad shoulder line that carries into the sleeves, neck opening.
-  const TAU=Math.PI*2,BN=2.5,BCZ=-.001;
-  const PROFILE=[[-.010,.060,.041],[.004,.058,.040],[.028,.056,.0385],[.052,.060,.040],[.068,.074,.039],[.080,.066,.033],[.088,.040,.024],[.094,.022,.0175]];
-  function profileAt(y){
-    const P=PROFILE,last=P.length-1;
-    if(y<=P[0][0])return [P[0][1],P[0][2]];if(y>=P[last][0])return [P[last][1],P[last][2]];
-    let i=0;while(y>P[i+1][0])i++;
-    const p0=P[Math.max(0,i-1)],p1=P[i],p2=P[i+1],p3=P[Math.min(last,i+2)],u=(y-p1[0])/(p2[0]-p1[0]);
-    const cr=k=>.5*(2*p1[k]+(p2[k]-p0[k])*u+(2*p0[k]-5*p1[k]+4*p2[k]-p3[k])*u*u+(3*p1[k]-p0[k]-3*p2[k]+p3[k])*u**3);
-    return [cr(1),cr(2)];
-  }
-  // Soft creases: a few interfering folds, stronger near the hem and fading out at the neckline.
-  const wrinkle=(t,y)=>(.0007*Math.sin(5*t+38*y)+.0004*Math.sin(11*t-55*y+1.7)+.0003*Math.sin(3*t+90*y))*(1+1.4*Math.max(0,(.03-y)/.04))*(y>.082?Math.max(0,1-(y-.082)/.012):1);
-  function bodyPoint(t,y,lift=0){
-    const [rx,rz]=profileAt(y),e=2/BN,sn=Math.sin(t),cs=Math.cos(t);
-    const x=rx*Math.sign(sn)*Math.abs(sn)**e,z=rz*Math.sign(cs)*Math.abs(cs)**e,len=Math.hypot(x,z)||1,k=(len+lift+wrinkle(t,y))/len;
-    return [x*k,y,z*k+BCZ];
-  }
-  const tForX=(x,y)=>Math.sign(x)*Math.asin(Math.min(1,(Math.abs(x)/profileAt(y)[0])**(BN/2)));
-  const surfaceZ=(x,y,lift=0)=>{const [rx,rz]=profileAt(y),r=Math.min(.985,Math.abs(x)/rx);return rz*(1-r**BN)**(1/BN)+BCZ+lift;};
-  // rows x (cols+1) grid -> indexed cloth. UVs are arc length in metres (weave scale is the same everywhere) unless a box is given.
-  function clothShell(rows,cols,point,uvBox=null){
-    const P=[],uv=[],idx=[];
-    for(let j=0;j<rows;j++)for(let i=0;i<=cols;i++)P.push(point(j,i));
-    const U=new Float32Array(P.length),V=new Float32Array(P.length),d=(a,b)=>Math.hypot(a[0]-b[0],a[1]-b[1],a[2]-b[2]);
-    for(let j=0;j<rows;j++)for(let i=0;i<=cols;i++){
-      const n=j*(cols+1)+i;U[n]=i?U[n-1]+d(P[n],P[n-1]):0;V[n]=j?V[n-cols-1]+d(P[n],P[n-cols-1]):0;
-      uv.push(uvBox?(P[n][0]-uvBox[0])/(uvBox[1]-uvBox[0]):U[n],uvBox?(P[n][1]-uvBox[2])/(uvBox[3]-uvBox[2]):V[n]);
-    }
-    for(let j=0;j<rows-1;j++)for(let i=0;i<cols;i++){const a=j*(cols+1)+i,b=a+1,c=a+cols+1,dd=c+1;idx.push(a,b,c,b,dd,c);}
-    const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(P.flat(),3));g.setAttribute('uv',new THREE.Float32BufferAttribute(uv,2));g.setIndex(idx);g.computeVertexNormals();return g;
-  }
-  // Body rows: a rolled hem (tucked lip, outer fold, then up the shirt), wavy so it does not read as a cut ring.
-  const bodyRows=[[-.0075,-.0030],[-.0105,.0008],[-.0070,.0006]];
-  for(let j=0;j<=26;j++)bodyRows.push([-.004+j*.098/26,0]);
-  const BODY_COLS=72;
-  wearBdu(waist,clothShell(bodyRows.length,BODY_COLS,(j,i)=>{
-    const t=i/BODY_COLS*TAU,[y,lift]=bodyRows[j];
-    return bodyPoint(t,y+(j<3?.0014*Math.sin(7*t+.6)+.0008*Math.sin(13*t):0),lift);
-  }),bduRed,'BDU polo body');
-  // Button placket, 15 mm wide, lying on the cloth.
-  const PH=.0075,placketYs=[];for(let y=.030;y<=.0925;y+=.0042)placketYs.push(y);
-  wearBdu(waist,clothShell(placketYs.length,6,(j,i)=>{const x=-PH+2*PH*i/6;return bodyPoint(tForX(x,placketYs[j]),placketYs[j],.0009);}),bduPlacket,'BDU polo placket');
-  for(const by of [.040,.056,.072]){
-    const z0=bodyPoint(0,by-.002)[2],z1=bodyPoint(0,by+.002)[2],btn=wearBdu(waist,cached('bduButton',()=>new THREE.CylinderGeometry(.0036,.0036,.0016,16).rotateX(Math.PI/2)),bduButton,'BDU polo button',0,by,bodyPoint(0,by,.0016)[2]);
-    btn.rotation.x=Math.atan((z1-z0)/.004);
-  }
-  // Collar: a soft stand around the neck (open at the front) plus two flaps lying on the shoulder line.
-  const COLLAR=[[.085,.0236],[.0895,.0236],[.0935,.0252]];
-  wearBdu(waist,clothShell(COLLAR.length,40,(j,i)=>{
-    const t=.5+(TAU-1.0)*i/40,[y,r]=COLLAR[j],w=.0004*Math.sin(7*t+y*200);
-    return [(r+w)*Math.sin(t),y,-.002+(r-.003+w)*Math.cos(t)];
-  }),bduRed,'BDU polo collar band');
-  for(const sign of [-1,1]){
-    const A=[sign*.005,.0925],B=[sign*.0285,.0912],Tp=[sign*.0185,.0655],N=8;
-    wearBdu(waist,clothShell(N+1,N,(j,i)=>{
-      const u=i/N,v=j/N,x=A[0]+(B[0]-A[0])*u*(1-v)+(Tp[0]-A[0])*v,y=A[1]+(B[1]-A[1])*u*(1-v)+(Tp[1]-A[1])*v;
-      return [x,y,surfaceZ(x,y,.0016+.0062*(1-v)**1.3)];
-    }),bduRed,'BDU polo collar flap');
-  }
-  // Embroidered BDU mark over the wearer's left chest (robot +x); u follows x so the lettering is not stretched.
-  const LOGO={x0:.014,x1:.045,y0:.041,y1:.055};
-  const logo=wearBdu(waist,clothShell(3,14,(j,i)=>{const x=LOGO.x0+(LOGO.x1-LOGO.x0)*i/14,y=LOGO.y0+(LOGO.y1-LOGO.y0)*j/2;return bodyPoint(tForX(x,y),y,.0012);},[LOGO.x0,LOGO.x1,LOGO.y0,LOGO.y1]),bduLogoMat,'BDU embroidered logo');logo.castShadow=false;
-  // Short sleeve: tapered cloth tube around the upper arm, hem turned up inside. Built in the shoulder-pitch frame so it swings with the arm.
-  const SLEEVE=[[.031,.006],[.0295,.0155],[.025,.0232],[.014,.0268],[.0,.0276],[-.014,.0283],[-.0225,.0292],[-.0245,.0286],[-.0225,.0274]];
-  function sleeve(parent,name,sign){
-    return wearBdu(parent,clothShell(SLEEVE.length,40,(j,i)=>{
-      const t=i/40*TAU,[y,r]=SLEEVE[j],w=.0005*Math.sin(4*t+25*y+sign)+.0004*Math.sin(9*t-40*y+.9);
-      return [(r+w)*1.03*Math.sin(t),y,-.005+(r+w)*Math.cos(t)];
-    }),bduRed,name);
-  }
+  const bduArms=[];
 
   const neckYaw=joint(waist,'neckYaw',0,.091,-.002),neckPitch=joint(neckYaw,'neckPitch');
   cyl(neckPitch,'Neck spindle',.007,.009,0,0,0,black,'y');
@@ -328,7 +257,7 @@ export function createRobot() {
 
   // Arms are nested at physical axle centres; plates never stretch with motion.
   for(const [side,sign] of [['left',1],['right',-1]]){
-    cyl(waist,'Shoulder connecting axle',.0065,.028,sign*.069,.073,0,steel,'x');
+    shirtCovered.push(cyl(waist,'Shoulder connecting axle',.0065,.028,sign*.069,.073,0,steel,'x'));
     shirtCovered.push(box(waist,'Shoulder mounting spacer',.009,.026,.030,sign*.060,.073,0,black,.001));
     const shoulderRoll=joint(waist,`${side}ShoulderRoll`,sign*.084,.073,0);
     const shoulder=joint(shoulderRoll,`${side}ShoulderPitch`,0,-.018,0);
@@ -337,7 +266,7 @@ export function createRobot() {
     const armPlate=rectangle(.027,.031,.007);hole(armPlate,0,.008,.0036);
     shirtCovered.push(plate(shoulderRoll,'Shoulder cheek plate',armPlate,.0016,0,-.006,.014),horn(shoulderRoll,0,0,.016,.0105));
     shirtCovered.push(box(shoulderRoll,'Upper arm pitch servo housing',.022,.023,.027,0,-.028,-.002,black,.001));
-    horn(shoulder,0,0,.016,.0086);
+    shirtCovered.push(horn(shoulder,0,0,.016,.0086));
     cyl(shoulderRoll,'Upper arm pitch axle',.0055,.030,0,-.018,0,steel,'x');
     box(shoulder,'Upper arm link',.023,.025,.018,0,-.025,-.002,silver,.0015);
     for(const xx of [-.009,.009])screw(shoulder,xx,-.025,.008,.0011);
@@ -351,7 +280,7 @@ export function createRobot() {
     box(elbow,'Forearm side rail',.003,.028,.023,-.011,-.015,0,silver,.0005);
     box(elbow,'Forearm side rail',.003,.028,.023,.011,-.015,0,silver,.0005);
     wearBox(shoulder,`${side}ShirtSleeve`,.050,.016,.030,0,-.004,-.004,shirtFabric);
-    sleeve(shoulder,`${side}BDU polo sleeve`,sign);
+    bduArms.push({side,sign,shoulder});
     const wrist=joint(elbow,`${side}Wrist`,0,-.034,0);
     box(wrist,'Wrist coupling',.019,.012,.017,0,-.002,0,black,.001);
     const hand=group(wrist,`${side}SlottedHand`);hand.scale.x=-sign;
@@ -367,6 +296,146 @@ export function createRobot() {
     plate(hand,'Flat thumb',thumbShape,.0018,0,0,.012);
     for(const x of [-.006,.006])screw(hand,x,-.006,.0133,.0011);
   }
+
+  // ---- BDU polo ----
+  // The shirt is one continuous piece of cloth. Its shape is a signed-distance model: body, a sloping shoulder yoke and
+  // two sleeves joined with smooth unions, so the armpits and shoulder caps are filleted like sewn fabric rather than
+  // meeting at a crease. It is meshed with surface nets, opened at the hem, neck and sleeve hems, and skinned to the
+  // waist and both upper arms (weights follow whichever part is nearest), so lifting an arm stretches the shoulder.
+  root.updateMatrixWorld(true);
+  const V3=THREE.Vector3,TAU=Math.PI*2,waistInv=new THREE.Matrix4().copy(waist.matrixWorld).invert();
+  const sat=n=>Math.min(1,Math.max(0,n)),smoothstep=(a,b,x)=>{const t=sat((x-a)/(b-a));return t*t*(3-2*t);};
+  const smin=(a,b,k)=>{const h=sat(.5+.5*(b-a)/k);return b+(a-b)*h-k*h*(1-h);};
+  const sdRoundBox=(x,y,z,c,b,r)=>{const qx=Math.abs(x-c[0])-b[0]+r,qy=Math.abs(y-c[1])-b[1]+r,qz=Math.abs(z-c[2])-b[2]+r;return Math.hypot(Math.max(qx,0),Math.max(qy,0),Math.max(qz,0))+Math.min(Math.max(qx,qy,qz),0)-r;};
+  const sdTube=(x,y,z,a,b,ra,rb)=>{const bx=b[0]-a[0],by=b[1]-a[1],bz=b[2]-a[2],px=x-a[0],py=y-a[1],pz=z-a[2],h=sat((px*bx+py*by+pz*bz)/(bx*bx+by*by+bz*bz));return Math.hypot(px-bx*h,py-by*h,pz-bz*h)-(ra+(rb-ra)*h);};
+  const arms=bduArms.map(({side,shoulder})=>{
+    const m=new THREE.Matrix4().multiplyMatrices(waistInv,shoulder.matrixWorld);
+    const top=new V3(0,.014,-.003).applyMatrix4(m),hem=new V3(0,-.027,-.004).applyMatrix4(m);
+    return {side,shoulder,top:top.toArray(),hem:hem.toArray(),down:hem.clone().sub(top).normalize()};
+  });
+  const NECK=[0,.074,-.002];
+  const torsoSD=(x,y,z)=>{let d=sdRoundBox(x,y,z,[0,.030,-.001],[.058,.050,.039],.022);for(const s of [-1,1])d=smin(d,sdTube(x,y,z,NECK,[s*.074,.066,-.003],.020,.020),.014);return d;};
+  const armSD=(a,x,y,z)=>sdTube(x,y,z,a.top,a.hem,.021,.0245);
+  // Soft creases, stronger towards the hem and fading out at the neckline.
+  const creases=(x,y,z)=>(.0005*Math.sin(170*x+60*y+1.3)+.0004*Math.sin(-90*x+150*y+.7)+.0003*Math.sin(210*z+110*y))*(1+1.6*sat((.025-y)/.035))*(1-sat((y-.080)/.012));
+  const shapeSD=(x,y,z)=>{let d=torsoSD(x,y,z);for(const a of arms)d=smin(d,armSD(a,x,y,z),.006);return d-creases(x,y,z);};
+  // Openings (positive = cut away): wavy hem, neck hole, and each sleeve past its hem (only where the arm is nearest).
+  const hemY=(x,z)=>-.012+.0012*Math.sin(160*x+1.1)*Math.cos(90*z);
+  const NECK_R=.021;
+  const cuts=(x,y,z)=>{
+    const c=[hemY(x,z)-y,Math.min(NECK_R-Math.hypot(x,z+.002),y-.080)];
+    for(const a of arms)c.push(Math.min((x-a.hem[0])*a.down.x+(y-a.hem[1])*a.down.y+(z-a.hem[2])*a.down.z,torsoSD(x,y,z)-armSD(a,x,y,z)));
+    return c;
+  };
+  const fieldAt=(x,y,z)=>Math.max(shapeSD(x,y,z),...cuts(x,y,z));
+  const grad=(f,x,y,z,e=.0003)=>new V3(f(x+e,y,z)-f(x-e,y,z),f(x,y+e,z)-f(x,y-e,z),f(x,y,z+e)-f(x,y,z-e)).divideScalar(2*e);
+  function shirtGeometry(){
+    const H=.0022,X0=-.128,Y0=-.018,Z0=-.056,NX=116,NY=56,NZ=50;
+    const nid=(i,j,k)=>i+(NX+1)*(j+(NY+1)*k),cid=(i,j,k)=>i+NX*(j+NY*k);
+    const field=new Float32Array((NX+1)*(NY+1)*(NZ+1));
+    for(let k=0;k<=NZ;k++)for(let j=0;j<=NY;j++)for(let i=0;i<=NX;i++)field[nid(i,j,k)]=fieldAt(X0+i*H,Y0+j*H,Z0+k*H);
+    // Surface nets: one vertex per sign-changing cell, at the mean of its edge crossings.
+    const C=[[0,0,0],[1,0,0],[0,1,0],[1,1,0],[0,0,1],[1,0,1],[0,1,1],[1,1,1]],E=[[0,1],[2,3],[4,5],[6,7],[0,2],[1,3],[4,6],[5,7],[0,4],[1,5],[2,6],[3,7]];
+    const cellV=new Int32Array(NX*NY*NZ).fill(-1),P=[],v=new Float32Array(8);
+    for(let k=0;k<NZ;k++)for(let j=0;j<NY;j++)for(let i=0;i<NX;i++){
+      let inside=0;for(let c=0;c<8;c++){v[c]=field[nid(i+C[c][0],j+C[c][1],k+C[c][2])];if(v[c]<0)inside++;}
+      if(inside===0||inside===8)continue;
+      let sx=0,sy=0,sz=0,n=0;
+      for(const [a,b] of E)if((v[a]<0)!==(v[b]<0)){const t=v[a]/(v[a]-v[b]);sx+=C[a][0]+(C[b][0]-C[a][0])*t;sy+=C[a][1]+(C[b][1]-C[a][1])*t;sz+=C[a][2]+(C[b][2]-C[a][2])*t;n++;}
+      cellV[cid(i,j,k)]=P.length;P.push(new V3(X0+(i+sx/n)*H,Y0+(j+sy/n)*H,Z0+(k+sz/n)*H));
+    }
+    const quads=[];
+    for(let k=0;k<=NZ;k++)for(let j=0;j<=NY;j++)for(let i=0;i<=NX;i++){
+      const f0=field[nid(i,j,k)]<0;
+      if(i<NX&&j>0&&k>0&&j<NY&&k<NZ&&f0!==(field[nid(i+1,j,k)]<0))quads.push([cid(i,j-1,k-1),cid(i,j,k-1),cid(i,j,k),cid(i,j-1,k)]);
+      if(j<NY&&i>0&&k>0&&i<NX&&k<NZ&&f0!==(field[nid(i,j+1,k)]<0))quads.push([cid(i-1,j,k-1),cid(i,j,k-1),cid(i,j,k),cid(i-1,j,k)]);
+      if(k<NZ&&i>0&&j>0&&i<NX&&j<NY&&f0!==(field[nid(i,j,k+1)]<0))quads.push([cid(i-1,j-1,k),cid(i,j-1,k),cid(i,j,k),cid(i-1,j,k)]);
+    }
+    // Faces on the cut caps are dropped; that leaves the cloth open at its hems.
+    const cap=P.map(p=>shapeSD(p.x,p.y,p.z)<-.45*H);
+    const tris=[];
+    for(const q of quads){
+      const [a,b,c,d]=q.map(n=>cellV[n]);if(a<0||b<0||c<0||d<0||cap[a]||cap[b]||cap[c]||cap[d])continue;
+      tris.push([a,b,c],[a,c,d]);
+    }
+    // Settle every vertex onto the cloth surface, then pull rim vertices onto the opening they border.
+    const project=p=>{for(let n=0;n<3;n++){const d=shapeSD(p.x,p.y,p.z),g=grad(shapeSD,p.x,p.y,p.z);p.addScaledVector(g,-d/Math.max(g.lengthSq(),1e-6));}};
+    const used=new Uint8Array(P.length);for(const t of tris)for(const n of t)used[n]=1;
+    P.forEach((p,n)=>{if(used[n])project(p);});
+    const edgeUse=new Map();for(const t of tris)for(let e=0;e<3;e++){const a=t[e],b=t[(e+1)%3],key=a<b?a+','+b:b+','+a;edgeUse.set(key,(edgeUse.get(key)||0)+1);}
+    const rim=new Set();for(const [key,n] of edgeUse)if(n===1)for(const x of key.split(','))rim.add(+x);
+    for(const n of rim){
+      const p=P[n],c=cuts(p.x,p.y,p.z),which=c.indexOf(Math.max(...c));
+      for(let it=0;it<4;it++){
+        if(which===0)p.y=hemY(p.x,p.z);
+        else if(which===1){const r=Math.hypot(p.x,p.z+.002)||1;p.x*=NECK_R/r;p.z=(p.z+.002)*NECK_R/r-.002;}
+        else{const a=arms[which-2],t=(p.x-a.hem[0])*a.down.x+(p.y-a.hem[1])*a.down.y+(p.z-a.hem[2])*a.down.z;p.addScaledVector(a.down,-t);}
+        project(p);
+      }
+    }
+    // Compact, orient each triangle along the outward gradient, and skin.
+    const remap=new Int32Array(P.length).fill(-1),pos=[],nor=[],uv=[],si=[],sw=[],index=[];
+    for(let n=0;n<P.length;n++){
+      if(!used[n])continue;remap[n]=pos.length/3;const p=P[n],g=grad(shapeSD,p.x,p.y,p.z).normalize();
+      pos.push(p.x,p.y,p.z);nor.push(g.x,g.y,g.z);
+      // Weave projected along the dominant normal axis, so flat shoulder tops are not stretched into moiré bands.
+      const ax=Math.abs(g.x),ay=Math.abs(g.y),az=Math.abs(g.z);uv.push(...(ay>ax&&ay>az?[p.x,p.z]:ax>az?[p.z,p.y]:[p.x,p.y]));
+      const t=torsoSD(p.x,p.y,p.z),w=arms.map(a=>smoothstep(-.003,.010,t-armSD(a,p.x,p.y,p.z)));
+      si.push(0,1,2,0);sw.push(Math.max(0,1-w[0]-w[1]),w[0],w[1],0);
+    }
+    const tmp1=new V3(),tmp2=new V3();
+    for(const [a,b,c] of tris){
+      tmp1.subVectors(P[b],P[a]).cross(tmp2.subVectors(P[c],P[a]));
+      const m=P[a].clone().add(P[b]).add(P[c]).divideScalar(3);
+      if(tmp1.dot(grad(shapeSD,m.x,m.y,m.z))>=0)index.push(remap[a],remap[b],remap[c]);else index.push(remap[a],remap[c],remap[b]);
+    }
+    const g=new THREE.BufferGeometry();
+    g.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));g.setAttribute('normal',new THREE.Float32BufferAttribute(nor,3));
+    g.setAttribute('uv',new THREE.Float32BufferAttribute(uv,2));g.setAttribute('skinIndex',new THREE.Uint16BufferAttribute(si,4));
+    g.setAttribute('skinWeight',new THREE.Float32BufferAttribute(sw,4));g.setIndex(index);return g;
+  }
+  const waistBone=new THREE.Bone();waistBone.name='BDU waist bone';waist.add(waistBone);bduCostume.push(waistBone);
+  const armBones=arms.map(a=>{const b=new THREE.Bone();b.name=`BDU ${a.side} arm bone`;a.shoulder.add(b);bduCostume.push(b);return b;});
+  const shirt=new THREE.SkinnedMesh(shirtGeometry(),bduRed);shirt.name=`BDU polo shirt_${serial++}`;
+  shirt.castShadow=shirt.receiveShadow=true;shirt.frustumCulled=false;shirt.visible=false;waist.add(shirt);bduCostume.push(shirt);
+  root.updateMatrixWorld(true);shirt.bind(new THREE.Skeleton([waistBone,...armBones]));
+
+  // Front details sit on the cloth: frontZ finds the surface by marching in from the front.
+  const frontZ=(x,y)=>{let lo=-.02,hi=.07;if(shapeSD(x,y,lo)>0)return lo;for(let n=0;n<24;n++){const m=(lo+hi)/2;if(shapeSD(x,y,m)<0)lo=m;else hi=m;}return lo;};
+  function clothShell(rows,cols,point,uvBox=null){
+    const P=[],uv=[],idx=[];
+    for(let j=0;j<rows;j++)for(let i=0;i<=cols;i++)P.push(point(j,i));
+    const U=new Float32Array(P.length),V=new Float32Array(P.length),d=(a,b)=>Math.hypot(a[0]-b[0],a[1]-b[1],a[2]-b[2]);
+    for(let j=0;j<rows;j++)for(let i=0;i<=cols;i++){
+      const n=j*(cols+1)+i;U[n]=i?U[n-1]+d(P[n],P[n-1]):0;V[n]=j?V[n-cols-1]+d(P[n],P[n-cols-1]):0;
+      uv.push(uvBox?(P[n][0]-uvBox[0])/(uvBox[1]-uvBox[0]):U[n],uvBox?(P[n][1]-uvBox[2])/(uvBox[3]-uvBox[2]):V[n]);
+    }
+    for(let j=0;j<rows-1;j++)for(let i=0;i<cols;i++){const a=j*(cols+1)+i,b=a+1,c=a+cols+1,dd=c+1;idx.push(a,b,c,b,dd,c);}
+    const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(P.flat(),3));g.setAttribute('uv',new THREE.Float32BufferAttribute(uv,2));g.setIndex(idx);g.computeVertexNormals();return g;
+  }
+  // Button placket, 15 mm wide.
+  const PH=.0075,placketYs=[];for(let y=.030;y<=.0862;y+=.004)placketYs.push(y);
+  wearBdu(waist,clothShell(placketYs.length,6,(j,i)=>{const x=-PH+2*PH*i/6,y=placketYs[j];return [x,y,frontZ(x,y)+.0009];}),bduPlacket,'BDU polo placket');
+  for(const by of [.040,.056,.072]){
+    const btn=wearBdu(waist,cached('bduButton',()=>new THREE.CylinderGeometry(.0036,.0036,.0016,16).rotateX(Math.PI/2)),bduButton,'BDU polo button',0,by,frontZ(0,by)+.0016);
+    btn.rotation.x=Math.atan((frontZ(0,by+.002)-frontZ(0,by-.002))/.004);
+  }
+  // Collar: a soft stand around the neck (open at the front) plus two flaps lying on the yoke.
+  const COLLAR=[[.083,.0226],[.0885,.0226],[.0930,.0244]];
+  wearBdu(waist,clothShell(COLLAR.length,40,(j,i)=>{
+    const t=.5+(TAU-1.0)*i/40,[y,r]=COLLAR[j],w=.0004*Math.sin(7*t+y*200);
+    return [(r+w)*Math.sin(t),y,-.002+(r-.002+w)*Math.cos(t)];
+  }),bduRed,'BDU polo collar band');
+  for(const sign of [-1,1]){
+    const A=[sign*.005,.0905],B=[sign*.027,.0895],Tp=[sign*.0185,.0655],N=8;
+    wearBdu(waist,clothShell(N+1,N,(j,i)=>{
+      const u=i/N,v=j/N,x=A[0]+(B[0]-A[0])*u*(1-v)+(Tp[0]-A[0])*v,y=A[1]+(B[1]-A[1])*u*(1-v)+(Tp[1]-A[1])*v;
+      return [x,y,frontZ(x,y)+.0016+.0055*(1-v)**1.3];
+    }),bduRed,'BDU polo collar flap');
+  }
+  // Embroidered BDU mark over the wearer's left chest (robot +x).
+  const LOGO={x0:.014,x1:.045,y0:.041,y1:.055};
+  const logo=wearBdu(waist,clothShell(3,14,(j,i)=>{const x=LOGO.x0+(LOGO.x1-LOGO.x0)*i/14,y=LOGO.y0+(LOGO.y1-LOGO.y0)*j/2;return [x,y,frontZ(x,y)+.0012];},[LOGO.x0,LOGO.x1,LOGO.y0,LOGO.y1]),bduLogoMat,'BDU embroidered logo');logo.castShadow=false;
 
   // Leg stacks: hip roll bracket, hip pitch servo, knee, ankle and foot roll.
   for(const [side,sign] of [['left',1],['right',-1]]){
